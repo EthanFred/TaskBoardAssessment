@@ -1,25 +1,51 @@
 
-import {useState} from 'react';
+import { useState, useEffect } from 'react';
 import './App.css';
+import { DragDropProvider } from '@dnd-kit/react';
+import TaskColumn from './components/TaskColumn';
+import { supabase } from './lib/supabaseClient';
+
 
 const columns = [
-  { id: 'todo', title: 'To Do' },
-  { id: 'in-progress', title: 'In Progress' },
-  { id: 'completed', title: 'Done' }
+  { taskStatus: 'todo', title: 'To Do' },
+  { taskStatus: 'in-progress', title: 'In Progress' },
+  { taskStatus: 'completed', title: 'Done' }
 ];
 
 
 function App() {
 
-  const [tasks, setTasks] = useState([
-    { id: 1, title: 'Laundry', status: 'todo', user_id: null, created_at: new Date().toISOString() },
-    { id: 2, title: 'Make Bed', status: 'in-progress', user_id: null, created_at: new Date().toISOString() },
-    { id: 3, title: 'Pick Up Room', status: 'completed', user_id: null, created_at: new Date().toISOString() }
-  ]);
+  const [tasks, setTasks] = useState([]);
 
   const [newTaskTitle, setNewTaskTitle] = useState('');
 
-  function addTask(event)
+  useEffect(() => {
+    async function loadTasks()
+    {
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+
+      if(authError || !authData.user)
+      {
+        console.error("Guest login required.");
+        return;
+      }
+
+      const {data, error} = await supabase.from('tasks').select('*')
+        .order('created_at', {ascending: true});
+
+      if(error)
+      {
+        console.error('Failed to load tasks:', error)
+        return;
+      }
+
+      setTasks(data);
+    }
+
+    loadTasks();
+  }, []);
+
+  async function addTask(event)
   {
     event.preventDefault()
 
@@ -27,28 +53,84 @@ function App() {
 
     if(newTitle === '') return;
 
-    const newTask = {
-      id: crypto.randomUUID(),
-      title: newTitle,
-      status: 'todo',
-      user_id: 0,
-      created_at: 0
+    const {data,error} = await supabase.from('tasks').insert({
+      title: newTitle, status: 'todo'
+    }).select().single();
+
+    if(error)
+    {
+      console.error("Failed to insert new task:", error);
+      return;
     }
 
-    setTasks((currentTasks) => [...currentTasks, newTask]);
+    setTasks((currentTasks) => [...currentTasks, data]);
     setNewTaskTitle('');
   }
 
-  function changeTaskStatus(taskId, newStatus)
+  async function changeTaskStatus(taskId, newStatus)
   {
+
+    const {data,error} = await supabase.from('tasks').update({status: newStatus})
+      .eq('id', taskId).select().single();
+
+    if(error)
+    {
+      console.error("Failed to update task status:", error)
+    }
     setTasks((currentTasks) => currentTasks.map((task) => 
-      task.id === taskId ? {...task, status: newStatus}: task));
+      task.id === taskId ? data : task));
   }
 
-  function deleteTask(taskId) {
+  function dragEnd(event)
+  {
+    if(event.canceled) return;
+
+    const {source, target} = event.operation;
+
+    if(!source || !target) return;
+
+    const destinationColumn = columns.find((column) => column.taskStatus === target.id);
+
+    if(!destinationColumn) return;
+
+    changeTaskStatus(source.id, destinationColumn.taskStatus);
+  }
+
+  async function deleteTask(taskId) 
+  {
+    const {data,error} = await supabase.from('tasks').delete().eq('id', taskId);
+
+    if(error)
+    {
+      console.error("Error deleting task:", error);
+    }
+
     setTasks((currentTasks) => currentTasks.filter((task) => task.id !== taskId));
   }
 
+  async function testGuestLogin() {
+    const { data: existing, error: lookupError } =
+      await supabase.auth.getUser();
+
+    if (lookupError && lookupError.name !== 'AuthSessionMissingError') {
+      console.error(lookupError);
+      return;
+    }
+
+    if (existing?.user) {
+      console.log('Existing user:', existing.user.id);
+      return;
+    }
+
+    const { data, error } = await supabase.auth.signInAnonymously();
+
+    if (error) {
+      console.error('Guest login failed:', error);
+      return;
+    }
+
+    console.log('Guest user ID:', data.user.id);
+  }
 
   return (
     <main className="app"> 
@@ -59,34 +141,23 @@ function App() {
         <button type="submit"> Add Task </button>
       </form>
 
+      <button type="button" onClick={testGuestLogin}>
+        Test Guest Login
+      </button>
+
       <div className="board">
-        {columns.map((column) => (
-          <section className="column" key={column.id}>
-            <h2>{column.title}</h2>
-
-            {tasks.filter((task) => task.status === column.id).map((task) => (
-              <article className="task-card" key={task.id}>
-                <p>{task.title}</p>
-
-                <select value={task.status} onChange={(event) => changeTaskStatus(task.id, event.target.value)}>
-                  {columns.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.title}
-                    </option> 
-                  ))} 
-                </select>
-                
-                <button type="button" onClick={() => deleteTask(task.id)}> 
-                  Delete
-                </button>
-              </article> 
+        <DragDropProvider onDragEnd={dragEnd}>
+          <div className='board'>
+            {columns.map((column) => (
+              <TaskColumn  key={column.taskStatus} column={column} columns={columns} tasks={tasks} 
+                changeTaskStatus={changeTaskStatus} deleteTask={deleteTask} />
             ))}
-          </section> 
-        ))}
+          </div>
+        </DragDropProvider>
       </div>
     
 
-      <button onClick={() => setTask("Implement drag and drop")}> Change Task </button>
+      
     </main>
     
   );

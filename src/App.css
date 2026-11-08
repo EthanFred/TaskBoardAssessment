@@ -76,3 +76,27 @@ button:hover {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* The draggable part of each card */
+.task-card .drag-handle {
+  background-color: #64748b;
+  cursor: grab;
+  touch-action: none;
+  margin-bottom: 10px;
+}
+
+.task-card .drag-handle:active {
+  cursor: grabbing;
+}
+
+/* Highlight a column when dragging over it */
+.column-over {
+  background-color: #dbeafe;
+  outline: 2px dashed #2563eb;
+}
+
+/* Make the dragged task slightly transparent */
+.task-card.dragging {
+  opacity: 0.6;
+}
