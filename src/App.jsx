@@ -16,33 +16,49 @@ const columns = [
 function App() {
 
   const [tasks, setTasks] = useState([]);
-
   const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
-    async function loadTasks()
+
+    let ignore = false;
+
+    async function initializeApp()
     {
-      const { data: authData, error: authError } = await supabase.auth.getUser();
+      try {
+        const {data: sessionData, error: sessionError} = await supabase.auth.getSession();
 
-      if(authError || !authData.user)
-      {
-        console.error("Guest login required.");
-        return;
+        if(ignore) return;
+        if(sessionError) throw sessionError;
+
+        if(!sessionData.session)
+        {
+          const {error: loginError} = await supabase.auth.signInAnonymously();
+
+          if(loginError) throw loginError;
+        }
+
+        if(ignore) return;
+      
+        const { data: data, error: error } = await supabase.from('tasks').select('*').order('created_at', {ascending: true});
+
+        if (error) throw error;
+
+        if(!ignore) setTasks(data);
+      } catch (error) {
+
+        if(!ignore) 
+        {
+          console.error("Initialization Failed", error);
+          setErrorMessage(error.message || "Something went wrong");
+        }
+      } finally {
+        if(!ignore) setIsLoading(false);
       }
-
-      const {data, error} = await supabase.from('tasks').select('*')
-        .order('created_at', {ascending: true});
-
-      if(error)
-      {
-        console.error('Failed to load tasks:', error)
-        return;
-      }
-
-      setTasks(data);
     }
-
-    loadTasks();
+    initializeApp();
+    return () => { ignore = true; };
   }, []);
 
   async function addTask(event)
@@ -130,6 +146,25 @@ function App() {
     }
 
     console.log('Guest user ID:', data.user.id);
+  }
+
+  if (isLoading) {
+    return (
+      <main className="app">
+        <h1>Task Board</h1>
+        <p>Loading your tasks...</p>
+      </main>
+    );
+  }
+  
+  if(errorMessage)
+  {
+    return (
+      <main className="app">
+        <h1>Task Board</h1>
+        <p>Something went wrong: {errorMessage}</p>
+      </main>
+    );
   }
 
   return (
