@@ -1,7 +1,7 @@
 import { useDroppable } from '@dnd-kit/react';
 import TaskCard from './TaskCard';
 
-function TaskColumn({ column, columns, tasks, changeTaskStatus, deleteTask})
+function TaskColumn({ column, columns, tasks, changeTaskStatus, deleteTask, updateTask, currentUser, profile})
 {
     const{ ref, isDropTarget } = useDroppable({id: column.taskStatus});
 
@@ -12,8 +12,9 @@ function TaskColumn({ column, columns, tasks, changeTaskStatus, deleteTask})
             <h2>{column.title}</h2>
 
             {columnTasks.map((task) => (
-                <TaskCard key={task.id} task={task} columns={columns} 
-                    changeTaskStatus={changeTaskStatus} deleteTask={deleteTask} />
+                <TaskCard key={task.id} task={task} columns={columns} changeTaskStatus={changeTaskStatus} 
+                    deleteTask={deleteTask} updateTask={updateTask} currentUser={currentUser}
+                    profile={profile}/>
             ))}
 
         </section>

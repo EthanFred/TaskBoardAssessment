@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import './App.css';
 import { DragDropProvider } from '@dnd-kit/react';
 import TaskColumn from './components/TaskColumn';
@@ -16,9 +16,21 @@ const columns = [
 function App() {
 
   const [tasks, setTasks] = useState([]);
-  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTitle, setNewTitle] = useState('');
+  const [newDescription, setNewDescription] = useState('');
+  const [newPriority, setNewPriority] = useState('medium');
+  const [newDueDate, setNewDueDate] = useState('');
+  const [assignToMe, setAssignToMe] = useState(true);
+
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
+
+  const [currentUser, setCurrentUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [nameInput, setNameInput] = useState('');
+  const [nameError, setNameError] = useState('');
+
+  const taskDialogRef = useRef(null);
 
   useEffect(() => {
 
@@ -37,6 +49,26 @@ function App() {
           const {error: loginError} = await supabase.auth.signInAnonymously();
 
           if(loginError) throw loginError;
+        }
+
+        if (ignore) return;
+
+        // Get the authenticated user
+        const { data: userData, error: userError } = await supabase.auth.getUser();
+
+        if (userError) throw userError;
+        if (!userData.user) throw new Error('User not found');
+
+        // Get this user's profile
+        const { data: profileData, error: profileError } = 
+          await supabase.from('profiles').select('id, display_name').eq('id', userData.user.id).single();
+
+        if (profileError) throw profileError;
+
+        if (!ignore) {
+          setCurrentUser(userData.user);
+          setProfile(profileData);
+          setNameInput(profileData.display_name);
         }
 
         if(ignore) return;
@@ -65,12 +97,24 @@ function App() {
   {
     event.preventDefault()
 
-    const newTitle = newTaskTitle.trim();
+    const title = newTitle.trim();
 
-    if(newTitle === '') return;
+    if(title === '') return;
+
+    const{data:userData, error:userError} = await supabase.auth.getUser();
+
+    if (userError || !userData.user) {
+    console.error('Unable to identify user:', userError);
+    return;
+  }
 
     const {data,error} = await supabase.from('tasks').insert({
-      title: newTitle, status: 'todo'
+      title: title, 
+      description: newDescription,
+      priority: newPriority,
+      due_date: newDueDate || null,
+      assignee_id: assignToMe ? userData.user.id : null,
+      status: 'todo'
     }).select().single();
 
     if(error)
@@ -80,7 +124,12 @@ function App() {
     }
 
     setTasks((currentTasks) => [...currentTasks, data]);
-    setNewTaskTitle('');
+
+    setNewTitle('');
+    setNewDescription('');
+    setNewPriority('medium');
+    setNewDueDate('');
+    setAssignToMe(true);
   }
 
   async function changeTaskStatus(taskId, newStatus)
@@ -92,9 +141,23 @@ function App() {
     if(error)
     {
       console.error("Failed to update task status:", error)
+      return;
     }
     setTasks((currentTasks) => currentTasks.map((task) => 
       task.id === taskId ? data : task));
+  }
+
+  async function updateTask(taskId, changes)
+  {
+    const {data, error} = await supabase.from('tasks').update(changes).eq('id', taskId).select().single();
+
+    if(error)
+    {
+      console.error("Failed to update task");
+      return;
+    }
+
+    setTasks((currentTasks) => currentTasks.map((task) => task.id === taskId ? data : task));
   }
 
   function dragEnd(event)
@@ -119,9 +182,36 @@ function App() {
     if(error)
     {
       console.error("Error deleting task:", error);
+      return;
     }
 
     setTasks((currentTasks) => currentTasks.filter((task) => task.id !== taskId));
+  }
+
+  async function saveDisplayInfo(event)
+  {
+    event.preventDefault();
+
+    const name = nameInput.trim();
+
+    if(name.length === 0 || name.length > 40)
+    {
+      setNameError("Name must be between 1 and 40 characters");
+      return;
+    }
+
+    const {data, error} = await supabase.from('profiles').update({display_name: name}).eq('id', currentUser.id).select().single();
+
+    if(error)
+    {
+      console.error("Failed to update user name");
+      setNameError("Unable to save user name");
+      return;
+    }
+
+    setProfile(data);
+    setNameInput(data.display_name);
+    setNameError('');
   }
 
   async function testGuestLogin() {
@@ -168,28 +258,70 @@ function App() {
   }
 
   return (
+    
     <main className="app"> 
-      <h1> Task Board </h1>
-      
-      <form onSubmit={addTask} className="task-form">
-        <input type="text" placeholder="Enter a new task..." value={newTaskTitle} onChange={(event) => setNewTaskTitle(event.target.value)} />
-        <button type="submit"> Add Task </button>
+      <header className='app-header'>
+        <div>
+          <h1>Task Board </h1>
+        </div>
+        <button type='button' className='new-task-button' onClick={() => taskDialogRef.current.showModal()}> Add Task </button>
+      </header>
+
+      <form onSubmit={saveDisplayInfo} className="profile-form">
+        <label htmlFor="display-name"> Your Display Name </label>
+        <input id='display-name' type='text' value={nameInput} onChange={(event) => setNameInput(event.target.value)} 
+          placeholder='Enter your name' maxLength={40} required />
+        <button type='submit'> Save Name </button>
+
+        {nameError ? (<p role="alert">{nameError}</p>) : null}
       </form>
-
-      <button type="button" onClick={testGuestLogin}>
-        Test Guest Login
-      </button>
-
-      <div className="board">
-        <DragDropProvider onDragEnd={dragEnd}>
-          <div className='board'>
-            {columns.map((column) => (
-              <TaskColumn  key={column.taskStatus} column={column} columns={columns} tasks={tasks} 
-                changeTaskStatus={changeTaskStatus} deleteTask={deleteTask} />
-            ))}
+      
+      <dialog ref={taskDialogRef} className='task-dialog' aria-labelledby='new-task-heading'>
+        <div className='dialog-header'>
+          <h2 id="new-task-heading"> Create Task </h2>
+          <button type='button' className='dialog-close' onClick={() => taskDialogRef.current.close()} aria-label="Close"> x </button>
+        </div>
+      
+        <form onSubmit={addTask} className="task-form">
+          <label className="full-width">
+            Task Title
+            <input type="text" placeholder='Enter a title...' value={newTitle} onChange={(event) => setNewTitle(event.target.value)} required autoFocus/>
+          </label>
+          <label className='full-width'>
+            Description
+            <textarea placeholder='Enter a description...' value={newDescription} onChange={(event) => setNewDescription(event.target.value)} rows='3' />
+          </label>
+          <label>
+            Priority
+            <select value={newPriority} onChange={(event) => setNewPriority(event.target.value)}>
+              <option value='low'>Low</option>
+              <option value='medium'>Medium</option>
+              <option value='high'>High</option>
+            </select>
+          </label>
+          <label>
+            <input type='date' value={newDueDate} onChange={(event) => setNewDueDate(event.target.value)} />
+          </label>
+          <label className="assign-checkbox full-width">
+            <input type="checkbox" checked={assignToMe} onChange={(event) => setAssignToMe(event.target.checked)}/>
+            Assign to {profile?.display_name || 'me'}
+          </label>
+          <div className='dialog-actions full-width'>
+            <button type='button' className='secondary-button' onClick={() => taskDialogRef.current.close()}> Cancel </button>
+            <button type="submit" className='full-width'> Add Task </button>
           </div>
-        </DragDropProvider>
-      </div>
+        </form>
+      </dialog>
+
+      <DragDropProvider onDragEnd={dragEnd}>
+        <div className='board'>
+          {columns.map((column) => (
+            <TaskColumn  key={column.taskStatus} column={column} columns={columns} tasks={tasks} 
+              changeTaskStatus={changeTaskStatus} deleteTask={deleteTask} updateTask={updateTask} 
+              currentUser={currentUser} profile={profile}/>
+          ))}
+        </div>
+      </DragDropProvider>
     
 
       
