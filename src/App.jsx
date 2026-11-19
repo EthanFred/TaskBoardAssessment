@@ -4,11 +4,13 @@ import './App.css';
 import { DragDropProvider } from '@dnd-kit/react';
 import TaskColumn from './components/TaskColumn';
 import { supabase } from './lib/supabaseClient';
+import TeamPanel from './components/TeamPanel';
 
 
 const columns = [
   { taskStatus: 'todo', title: 'To Do' },
   { taskStatus: 'in-progress', title: 'In Progress' },
+  { taskStatus: 'in-review', title: 'In Review'},
   { taskStatus: 'completed', title: 'Done' }
 ];
 
@@ -20,7 +22,6 @@ function App() {
   const [newDescription, setNewDescription] = useState('');
   const [newPriority, setNewPriority] = useState('medium');
   const [newDueDate, setNewDueDate] = useState('');
-  const [assignToMe, setAssignToMe] = useState(true);
 
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
@@ -29,6 +30,9 @@ function App() {
   const [profile, setProfile] = useState(null);
   const [nameInput, setNameInput] = useState('');
   const [nameError, setNameError] = useState('');
+
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [taskAssignees, setTaskAssignees] = useState([]);
 
   const taskDialogRef = useRef(null);
 
@@ -78,6 +82,20 @@ function App() {
         if (error) throw error;
 
         if(!ignore) setTasks(data);
+
+        const[membersResult, assignmentsResult] = await Promise.all([
+          supabase.from('team_members').select('*').order('created_at', {ascending: true}),
+          supabase.from('task_assignees').select('task_id, member_id')
+        ])
+
+        if(membersResult.error) throw membersResult.error;
+        if(assignmentsResult.error) throw assignmentsResult.error;
+
+        if(!ignore)
+        {
+          setTeamMembers(membersResult.data);
+          setTaskAssignees(assignmentsResult.data)
+        }
       } catch (error) {
 
         if(!ignore) 
@@ -100,20 +118,13 @@ function App() {
     const title = newTitle.trim();
 
     if(title === '') return;
-
-    const{data:userData, error:userError} = await supabase.auth.getUser();
-
-    if (userError || !userData.user) {
-    console.error('Unable to identify user:', userError);
-    return;
-  }
+    
 
     const {data,error} = await supabase.from('tasks').insert({
       title: title, 
       description: newDescription,
       priority: newPriority,
       due_date: newDueDate || null,
-      assignee_id: assignToMe ? userData.user.id : null,
       status: 'todo'
     }).select().single();
 
@@ -129,7 +140,7 @@ function App() {
     setNewDescription('');
     setNewPriority('medium');
     setNewDueDate('');
-    setAssignToMe(true);
+    taskDialogRef.current?.close();
   }
 
   async function changeTaskStatus(taskId, newStatus)
@@ -153,11 +164,12 @@ function App() {
 
     if(error)
     {
-      console.error("Failed to update task");
-      return;
+      console.error("Failed to update task:", error);
+      return false;
     }
 
     setTasks((currentTasks) => currentTasks.map((task) => task.id === taskId ? data : task));
+    return true;
   }
 
   function dragEnd(event)
@@ -204,7 +216,7 @@ function App() {
 
     if(error)
     {
-      console.error("Failed to update user name");
+      console.error("Failed to update user name:", error);
       setNameError("Unable to save user name");
       return;
     }
@@ -214,6 +226,54 @@ function App() {
     setNameError('');
   }
 
+  async function addTeamMember(name, avatar, color){
+    
+    const{data, error} = await supabase.from('team_members').insert({name: name.trim(), avatar: avatar.trim() || null, color: color}).select().single();
+
+    if(error)
+    {
+      console.error("Failed to add team member: ", error);
+      return false;
+    }
+
+    setTeamMembers((currentMembers) => [...currentMembers, data]);
+    return true;
+    
+  }
+
+  async function saveTaskMembers(taskId, memberIds)
+  {
+    const existingIds = taskAssignees.filter((row) => row.task_Id === taskId).map((row) => row.member_id);
+
+    const toAdd = memberIds.filter((id) => !existingIds.includes(id));
+    const toRemove = existingIds.filter((id) => !memberIds.includes(id));
+
+    if(toRemove.length > 0)
+    {
+      const {error} = await supabase.from('task_assignees').delete().eq('task_id', taskId).in('member_id', toRemove);
+      if(error)
+      {
+        console.error("Cannot remove member from task");
+        return false;
+      }
+    }
+    if(toAdd.length > 0)
+    {
+      const newAssignments = toAdd.map((memberId) => ({ task_id: taskId, member_id: memberId }));
+      const {error} = await supabase.from('task_assignees').insert(newAssignments);
+      if(error)
+      {
+        console.error("Cannot add member to task");
+        return false;
+      }
+    }
+
+    setTaskAssignees((current) => [
+      ...current.filter((row) => row.task_id !== taskId), 
+      ...memberIds.map((memberId) => ({ task_id: taskId, member_id: memberId}))
+    ]);
+    return true;
+  }
   async function testGuestLogin() {
     const { data: existing, error: lookupError } =
       await supabase.auth.getUser();
@@ -300,11 +360,8 @@ function App() {
             </select>
           </label>
           <label>
+            Due Date
             <input type='date' value={newDueDate} onChange={(event) => setNewDueDate(event.target.value)} />
-          </label>
-          <label className="assign-checkbox full-width">
-            <input type="checkbox" checked={assignToMe} onChange={(event) => setAssignToMe(event.target.checked)}/>
-            Assign to {profile?.display_name || 'me'}
           </label>
           <div className='dialog-actions full-width'>
             <button type='button' className='secondary-button' onClick={() => taskDialogRef.current.close()}> Cancel </button>
@@ -312,13 +369,15 @@ function App() {
           </div>
         </form>
       </dialog>
+      <TeamPanel members={teamMembers} addTeamMember={addTeamMember}>
 
+      </TeamPanel>
       <DragDropProvider onDragEnd={dragEnd}>
         <div className='board'>
           {columns.map((column) => (
             <TaskColumn  key={column.taskStatus} column={column} columns={columns} tasks={tasks} 
               changeTaskStatus={changeTaskStatus} deleteTask={deleteTask} updateTask={updateTask} 
-              currentUser={currentUser} profile={profile}/>
+              teamMembers={teamMembers} taskAssignees={taskAssignees} saveTaskMembers={saveTaskMembers}/>
           ))}
         </div>
       </DragDropProvider>

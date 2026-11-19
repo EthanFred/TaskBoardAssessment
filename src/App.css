@@ -36,7 +36,7 @@ button:hover {
 
 .board {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 20px;
 }
 
@@ -55,7 +55,8 @@ button:hover {
 .task-card {
   background-color: white;
   color: #1e293b;
-  padding: 16px;
+  padding: 0;
+  overflow: hidden;
   margin-bottom: 12px;
   border-radius: 6px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -67,8 +68,12 @@ button:hover {
   margin-bottom: 10px;
 }
 
-.task-card button {
-  background-color: #dc2626;
+.task-card .delete-task-button {
+    background-color: #dc2626;
+}
+
+.task-card .delete-task-button:hover {
+    background-color: #b91c1c;
 }
 
 @media (max-width: 650px) {
@@ -80,10 +85,21 @@ button:hover {
 
 /* The draggable part of each card */
 .task-card .drag-handle {
-  background-color: #64748b;
-  cursor: grab;
-  touch-action: none;
-  margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 100%;
+    height: 16px;
+    padding: 0;
+    margin: 0;
+
+    background-color: #64748b;
+    border: none;
+    border-radius: 0;
+
+    cursor: grab;
+    touch-action: none;
 }
 
 .task-card .drag-handle:active {
@@ -320,4 +336,113 @@ button:hover {
 
 .task-card-content {
   padding: 16px;
+}
+
+.member-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+
+  color: white;
+  font-weight: 600;
+  font-size: 15px;
+
+  flex-shrink: 0;
+}
+
+.assignee-avatars {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.team-panel {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.team-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.team-panel-header h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.team-member-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.team-member {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #334155;
+  font-size: 14px;
+}
+
+@media (max-width: 600px) {
+  .team-panel-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.edit-task-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.edit-task-form > label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.edit-task-form input:not([type="checkbox"]),
+.edit-task-form textarea,
+.edit-task-form select {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+}
+
+.edit-task-form .assignee-picker {
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.edit-task-form .assignee-option {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    margin: 10px 0;
+}
+
+.edit-task-form .assignee-option input[type="checkbox"] {
+    width: auto;
+}
+
+.edit-task-form input[type="color"] {
+    height: 42px;
+    padding: 4px;
 }
