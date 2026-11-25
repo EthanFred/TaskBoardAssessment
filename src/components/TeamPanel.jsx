@@ -1,9 +1,14 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import MemberAvatar from './MemberAvatar';
+
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+
+import {Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription,DialogFooter} from '@/components/ui/dialog';
 
 function TeamPanel({members, addTeamMember})
 {
-    const dialogRef = useRef(null);
+    const [dialogOpen, setDialogOpen] = useState(false);
 
     const[name, setName] = useState('');
     const [avatar, setAvatar] = useState('');
@@ -32,7 +37,7 @@ function TeamPanel({members, addTeamMember})
             setName('');
             setAvatar('');
             setColor('#64748b');
-            dialogRef.current?.close();
+            setDialogOpen(false);
         } finally {
             setSaving(false);
         }
@@ -43,9 +48,9 @@ function TeamPanel({members, addTeamMember})
         <section className='team-panel'>
             <div className='team-panel-header'>
                 <h2>Team Members</h2>
-                <button type='button' onClick={() => dialogRef.current?.showModal()}>
+                <Button type='button' className='shadcn-button' onClick={() => setDialogOpen(true)}>
                     Add Team Member
-                </button>
+                </Button>
             </div>
             <div className='team-member-list'>
                 {members.map((member) => (
@@ -60,37 +65,47 @@ function TeamPanel({members, addTeamMember})
                 )}
             </div>
 
-            <dialog ref={dialogRef} className='task-dialog' aria-label='Add team member'>
-                <div className = "dialog-header">
-                    <h2> Add Team Member </h2>
-                    <button type='button' className='dialog-close' onClick={() => dialogRef.current?.close()} aria-label='Close'> x </button>
-                </div>
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
 
-                <form onSubmit={handleSubmit} className='edit-task-form'>
-                    <label> 
-                        Name
-                        <input type='text' value={name} onChange={(event) => setName(event.target.value)}
-                            maxLength={40} required/>
-                    </label>
-                    <label>
-                        Avatar
-                        <input type='text' value={avatar} onChange={(event) => setAvatar(event.target.value)} maxLength={8}/>
-                    </label>
-                    <label>
-                        Color
-                        <input type='color' value={color} onChange={(event) => setColor(event.target.value)}/>
-                    </label>
+                    <DialogHeader>
+                        <DialogTitle>Add Team Member</DialogTitle>
 
-                    {errorMessage && (<p role='alert'>{errorMessage}</p>)}
+                        <DialogDescription>
+                            Add someone to your team and customize their avatar.
+                        </DialogDescription>
+                    </DialogHeader>
 
-                    <div className='dialog-actions'>
-                        <button type='button' className='secondary-button' onClick={() => dialogRef.current?.close()}> Cancel </button>
-                        <button type='submit' disabled={saving}>
-                            {saving ? 'Adding...' : 'Add Member'}
-                        </button>
-                    </div>
-                </form>
-            </dialog>
+                    <form onSubmit={handleSubmit} className="board-dialog-form">
+                        <label>
+                            Name
+                            <Input type="text" value={name} onChange={(event) => setName(event.target.value)} placeholder="Enter a name" maxLength={40} required/>
+                        </label>
+
+                        <label>
+                            Avatar (Optional)
+                            <Input type="text" value={avatar} onChange={(event) => setAvatar(event.target.value)} placeholder="Enter an emoji" maxLength={8}/>
+                        </label>
+
+                        <label>
+                            Avatar Color
+                            <Input type="color" value={color} onChange={(event) => setColor(event.target.value)}className="h-10 w-20 cursor-pointer p-1"/>
+                        </label>
+
+                        {errorMessage && (<p role="alert" className="text-sm text-destructive"> {errorMessage} </p>)}
+
+                        <DialogFooter>
+                            <Button type="button" variant="outline" className="shadcn-button" onClick={() => setDialogOpen(false)} disabled={saving}>
+                                Cancel
+                            </Button>
+
+                            <Button type="submit" className="shadcn-button" disabled={saving}>
+                                {saving ? 'Adding...' : 'Add Member'}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
         </section>
     );
 }

@@ -6,6 +6,13 @@ import TaskColumn from './components/TaskColumn';
 import { supabase } from './lib/supabaseClient';
 import TeamPanel from './components/TeamPanel';
 
+import { Button } from '@/components/ui/button';
+import {Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription,DialogFooter} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+
+
 
 const columns = [
   { taskStatus: 'todo', title: 'To Do' },
@@ -34,7 +41,7 @@ function App() {
   const [teamMembers, setTeamMembers] = useState([]);
   const [taskAssignees, setTaskAssignees] = useState([]);
 
-  const taskDialogRef = useRef(null);
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false);
 
   useEffect(() => {
 
@@ -140,7 +147,7 @@ function App() {
     setNewDescription('');
     setNewPriority('medium');
     setNewDueDate('');
-    taskDialogRef.current?.close();
+    setTaskDialogOpen(false);
   }
 
   async function changeTaskStatus(taskId, newStatus)
@@ -243,7 +250,7 @@ function App() {
 
   async function saveTaskMembers(taskId, memberIds)
   {
-    const existingIds = taskAssignees.filter((row) => row.task_Id === taskId).map((row) => row.member_id);
+    const existingIds = taskAssignees.filter((row) => row.task_id === taskId).map((row) => row.member_id);
 
     const toAdd = memberIds.filter((id) => !existingIds.includes(id));
     const toRemove = existingIds.filter((id) => !memberIds.includes(id));
@@ -274,7 +281,7 @@ function App() {
     ]);
     return true;
   }
-  async function testGuestLogin() {
+  /*async function testGuestLogin() {
     const { data: existing, error: lookupError } =
       await supabase.auth.getUser();
 
@@ -296,7 +303,7 @@ function App() {
     }
 
     console.log('Guest user ID:', data.user.id);
-  }
+  }*/
 
   if (isLoading) {
     return (
@@ -324,51 +331,55 @@ function App() {
         <div>
           <h1>Task Board </h1>
         </div>
-        <button type='button' className='new-task-button' onClick={() => taskDialogRef.current.showModal()}> Add Task </button>
+        <Button type='button' className='shadcn-button' variant='outline' onClick={() => setTaskDialogOpen(true)}> Add Task </Button>
       </header>
 
       <form onSubmit={saveDisplayInfo} className="profile-form">
         <label htmlFor="display-name"> Your Display Name </label>
-        <input id='display-name' type='text' value={nameInput} onChange={(event) => setNameInput(event.target.value)} 
+        <Input id='display-name' type='text' value={nameInput} onChange={(event) => setNameInput(event.target.value)} 
           placeholder='Enter your name' maxLength={40} required />
-        <button type='submit'> Save Name </button>
+        <Button type='submit' className='shadcn-button'> Save Name </Button>
 
         {nameError ? (<p role="alert">{nameError}</p>) : null}
       </form>
       
-      <dialog ref={taskDialogRef} className='task-dialog' aria-labelledby='new-task-heading'>
-        <div className='dialog-header'>
-          <h2 id="new-task-heading"> Create Task </h2>
-          <button type='button' className='dialog-close' onClick={() => taskDialogRef.current.close()} aria-label="Close"> x </button>
-        </div>
+      <Dialog open={taskDialogOpen} onOpenChange={setTaskDialogOpen}>
+        <DialogContent className='max-h-[85vh] overflow-y-auto sm:max-w-xl'>
+          <DialogHeader>
+            <DialogTitle>Create Task</DialogTitle>
+            <DialogDescription>Add a new task to your board.</DialogDescription>
+          </DialogHeader>
       
-        <form onSubmit={addTask} className="task-form">
-          <label className="full-width">
-            Task Title
-            <input type="text" placeholder='Enter a title...' value={newTitle} onChange={(event) => setNewTitle(event.target.value)} required autoFocus/>
-          </label>
-          <label className='full-width'>
-            Description
-            <textarea placeholder='Enter a description...' value={newDescription} onChange={(event) => setNewDescription(event.target.value)} rows='3' />
-          </label>
-          <label>
-            Priority
-            <select value={newPriority} onChange={(event) => setNewPriority(event.target.value)}>
-              <option value='low'>Low</option>
-              <option value='medium'>Medium</option>
-              <option value='high'>High</option>
-            </select>
-          </label>
-          <label>
-            Due Date
-            <input type='date' value={newDueDate} onChange={(event) => setNewDueDate(event.target.value)} />
-          </label>
-          <div className='dialog-actions full-width'>
-            <button type='button' className='secondary-button' onClick={() => taskDialogRef.current.close()}> Cancel </button>
-            <button type="submit" className='full-width'> Add Task </button>
-          </div>
-        </form>
-      </dialog>
+          <form onSubmit={addTask} className="board-dialog-form">
+
+            <label>
+              Task Title
+              <Input type="text" placeholder='Enter a title...' value={newTitle} onChange={(event) => setNewTitle(event.target.value)} required/>
+            </label>
+            <label>
+              Description
+              <Textarea placeholder='Enter a description...' value={newDescription} onChange={(event) => setNewDescription(event.target.value)} rows={3} />
+            </label>
+            <label>
+              Priority
+              <NativeSelect value={newPriority} onChange={(event) => setNewPriority(event.target.value)}>
+                <NativeSelectOption value='low'>Low</NativeSelectOption>
+                <NativeSelectOption value='medium'>Medium</NativeSelectOption>
+                <NativeSelectOption value='high'>High</NativeSelectOption>
+              </NativeSelect>
+            </label>
+            <label>
+              Due Date
+              <Input type='date' value={newDueDate} onChange={(event) => setNewDueDate(event.target.value)} />
+            </label>
+
+            <DialogFooter>
+              <Button type='button' variant='outline' className='shadcn-button' onClick={() => setTaskDialogOpen(false)}> Cancel </Button>
+              <Button type='submit' className='shadcn-button'>Add Task</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
       <TeamPanel members={teamMembers} addTeamMember={addTeamMember}>
 
       </TeamPanel>

@@ -1,10 +1,21 @@
 import { useDraggable } from '@dnd-kit/react'
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import MemberAvatar from './MemberAvatar';
+
+import { Badge } from '@/components/ui/badge';
+import {Card, CardHeader, CardTitle, CardContent, CardFooter} from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import {Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription,DialogFooter} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+
+import { NativeSelect, NativeSelectOption} from '@/components/ui/native-select';
+import { Checkbox } from '@/components/ui/checkbox';
+
 
 function TaskCard({task, columns, changeTaskStatus, deleteTask, updateTask, teamMembers, assignedMembers, saveTaskMembers})
 {
-    const editDialogRef = useRef(null);
+    const [editOpen, setEditOpen] = useState(false);
 
     const [draft, setDraft] = useState({});
     const [selectedMemberIds, setSelectedMemberIds] = useState([]);
@@ -26,7 +37,7 @@ function TaskCard({task, columns, changeTaskStatus, deleteTask, updateTask, team
         setSelectedMemberIds(assignedMembers.map((member) => member.id));
 
         setSaveError('');
-        editDialogRef.current?.showModal();
+        setEditOpen(true);
     }
 
     async function saveChanges(event) {
@@ -60,7 +71,7 @@ function TaskCard({task, columns, changeTaskStatus, deleteTask, updateTask, team
                 return;
             }
 
-            editDialogRef.current?.close();
+            setEditOpen(false);
 
 
         } catch(error) {
@@ -74,113 +85,114 @@ function TaskCard({task, columns, changeTaskStatus, deleteTask, updateTask, team
 
     return(
         <>
-            <article ref={ref} className={`task-card priority-${task.priority} ${isDragging ? 'dragging' : ''}`}>
-                
+            <Card ref={ref} size='sm' className={`task-card priority-${task.priority} ${isDragging ? 'dragging' : ''}`}>
                 <button type='button' ref={handleRef} className='drag-handle' aria-label={`Drag ${task.title}`} title='Drag task' />
 
-                <div className = 'task-card-content'>
-                
-                    <p>{task.title}</p>
+                <CardHeader className='gap-2 pt-3 pb-2'>
+                    <div className='flex items-start justify-between gap-2'>
+                        <CardTitle className='text-base'>
+                            {task.title}
+                        </CardTitle>
 
-                    {task.description && (<p className="task-description"> {task.description} </p>)}
-
-                    <div className='task-details'>
-                        <p> Priority: {task.priority} </p>
-                        <p> Due Date: {task.due_date || "No due date assigned"} </p>
+                        <Badge variant={task.priority === 'high' ? 'destructive' : task.priority === 'medium' ? 'secondary' : 'outline'}>
+                            {task.priority}
+                        </Badge>
                     </div>
 
+                    {task.description && (<p className="task-description"> {task.description} </p>)}
+                </CardHeader>
+
+                <CardContent className='space-y-3 pb-3'>
+                    <p className='text-xs text-muted-foreground'>Due Date: {task.due_date || 'No due date assigned'} </p>
                     <div className='assignee-avatars'>
                         {assignedMembers.length === 0 ? 
-                            (<span>Unassigned</span>) : 
+                            (<span className='text-sm text-muted-foreground'>Unassigned</span>) : 
                             (assignedMembers.map((member) => (<MemberAvatar key={member.id} member={member}/>)))}
                     </div>
 
-                    <select value={task.status} onChange={(event) => changeTaskStatus(task.id, event.target.value)}>
-                        {columns.map((option) => (
-                            <option key={option.taskStatus} value={option.taskStatus}>
-                                {option.title}
-                            </option> 
-                        ))}
-                    </select>
+                </CardContent>
 
-                    <button type="button" onClick={openEditor}>
-                        Update Task
-                    </button>
+                <CardFooter className='flex flex-col items-stretch gap-2 border-t pt-3 pb-3'>
+                    
+                    <div className='flex w-full gap-2'>
+                        <Button type='button' variant='outline' className='shadcn-button flex-1' onClick={openEditor}>
+                            Update
+                        </Button>
+                        <Button type='button' variant='destructive' className='shadcn-button flex-1' onClick={() => deleteTask(task.id)}>
+                            Delete
+                        </Button>
+                    </div>
+                </CardFooter>
+            </Card>
+            
+            <Dialog open={editOpen} onOpenChange={setEditOpen}>
+                <DialogContent className='max-h-[86vh] overflow-y-auto sm:max-w-xl'>
+                    <DialogHeader>
+                        <DialogTitle>Update Task</DialogTitle>
+                        <DialogDescription>Edit task details and assigne team members.</DialogDescription>
+                    </DialogHeader>
+                    
+                    <form onSubmit={saveChanges} className='edit-task-form board-dialog-form'>
+                        <label>
+                            Title
+                            <Input type='text' value={draft.title ?? ''} onChange={(event) => setDraft({...draft, title: event.target.value})} required />
+                        </label>
+                        <label>
+                            Description
+                            <Textarea value={draft.description ?? ''} onChange={(event) => setDraft({...draft, description: event.target.value})} /> 
+                        </label>
+                        <label>
+                            Priority
+                            <NativeSelect value={draft.priority ?? 'medium'} onChange={(event) => setDraft({...draft, priority: event.target.value})} >
+                                <NativeSelectOption value='low'>Low</NativeSelectOption>
+                                <NativeSelectOption value='medium'>Medium</NativeSelectOption>
+                                <NativeSelectOption value='high'>High</NativeSelectOption>
+                            </NativeSelect>
+                        </label>
+                        <label>
+                            Due Date
+                            <Input type='date' value={draft.due_date ?? ''} onChange={(event) => setDraft({...draft, due_date: event.target.value})} />
+                        </label>
+                        <label>
+                            Status
+                            <select value={draft.status ?? task.status} onChange={(event) => setDraft({...draft, status: event.target.value})} >
+                                {columns.map((column) => (
+                                    <option key={column.taskStatus} value={column.taskStatus}> 
+                                        {column.title}
+                                    </option>
+                                ))}
+                            </select> 
+                        </label>
 
-                    <button type="button" className="delete-task-button" onClick={() => deleteTask(task.id)}> Delete </button>
-                </div>
-            </article>
-            <dialog ref={editDialogRef} className='task-dialog' aria-label='Update Task'>
-                <div className='dialog-header'>
-                    <h2>Update Task</h2>
-                    <button type='button' className='dialog-close' onClick={() => editDialogRef.current?.close()}>
-                        x
-                    </button>
-                </div>
-                <form onSubmit={saveChanges} className='edit-task-form'>
-                    <label>
-                        Title
-                        <input type='text' value={draft.title ?? ''} onChange={(event) => setDraft({...draft, title: event.target.value})} required />
-                    </label>
-                    <label>
-                        Description
-                        <textarea value={draft.description ?? ''} onChange={(event) => setDraft({...draft, description: event.target.value})} /> 
-                    </label>
-                    <label>
-                        Priority
-                        <select value={draft.priority ?? 'medium'} onChange={(event) => setDraft({...draft, priority: event.target.value})} >
-                            <option value='low'>Low</option>
-                            <option value='medium'>Medium</option>
-                            <option value='high'>High</option>
-                        </select>
-                    </label>
-                    <label>
-                        Due Date
-                        <input type='date' value={draft.due_date ?? ''} onChange={(event) => setDraft({...draft, due_date: event.target.value})} />
-                    </label>
-                    <label>
-                        Status
-                        <select value={draft.status ?? task.status} onChange={(event) => setDraft({...draft, status: event.target.value})} >
-                            {columns.map((column) => (
-                                <option key={column.taskStatus} value={column.taskStatus}> 
-                                    {column.title}
-                                </option>
-                            ))}
-                        </select> 
-                    </label>
-
-                    <fieldset className='assignee-picker'>
-                        <legend>Assign Team Members</legend>
-                        {teamMembers.map((member) => (
-                            <label key={member.id} className='assignee-option'>
-                                <input type='checkbox' checked={selectedMemberIds.includes(member.id)} 
-                                    onChange={(event) => {
-                                        if(event.target.checked)
+                        <fieldset className='assignee-picker'>
+                            <legend>Assign Team Members</legend>
+                            {teamMembers.map((member) => (
+                                <div key={member.id} className='assignee-option'>
+                                    <Checkbox id={`member-${task.id}-${member.id}`} checked={selectedMemberIds.includes(member.id)} onCheckedChanged={(checked) =>{
+                                        if(checked)
                                         {
                                             setSelectedMemberIds((current) => [...current, member.id]);
                                         } else {
                                             setSelectedMemberIds((current) => current.filter((id) => id !== member.id));
                                         }
-                                    }}
-                                />
-                                <MemberAvatar member={member} />
-                                <span>{member.name}</span>
-                            </label>
-                        ))}
-                    </fieldset>
+                                    }}/>
+                                    <label htmlFor={`member-${task.id}-${member.id}`} className='flex items-center gap-3 cursor-pointer'>
+                                        <MemberAvatar member={member} />
+                                        <span>{member.name}</span>
+                                    </label>
+                                </div>
+                            ))}
+                        </fieldset>
 
-                    {saveError && (<p role='alert'>{saveError}</p>)}
+                        {saveError && (<p role='alert'>{saveError}</p>)}
 
-                    <div className='dialog-actions'>
-                        <button type='button' className='secondary-button' onClick={() => editDialogRef.current?.close()}>
-                            Cancel
-                        </button>
-                        <button type='submit' disabled={saving}>
-                            {saving ? "Saving..." : "Save Changes"}
-                        </button>
-                    </div>
-                </form>
-            </dialog>
+                        <DialogFooter>
+                            <Button type='button' variant='outline' className='shadcn-button' onClick={() => setEditOpen(false)} disabled={saving}> Cancel </Button>
+                            <Button type='submit' className='shadcn-button' disabled={saving}> {saving ? "Saving..." : "Save Changes"} </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
         </>
     );
 }
